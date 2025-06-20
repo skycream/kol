@@ -1,0 +1,66 @@
+{
+  "summary": {
+    "analysis_date": "2025-06-19T18:31:27.512875",
+    "total_files": 2,
+    "ocr_needed": 1,
+    "ocr_not_needed": 1,
+    "errors": 0,
+    "folder_path": "."
+  },
+  "results": [
+    {
+      "file_name": "2024\u1112\u1161\u1103\u1161\u11ab104560 \u1107\u116e\u1103\u1169\u11bc\u1109\u1161\u11ab \u1106\u1162\u1100\u1161\u11a8\u1100\u1169\u11bc\u1100\u11692.pdf",
+      "file_path": "2024\u1112\u1161\u1103\u1161\u11ab104560 \u1107\u116e\u1103\u1169\u11bc\u1109\u1161\u11ab \u1106\u1162\u1100\u1161\u11a8\u1100\u1169\u11bc\u1100\u11692.pdf",
+      "file_size": 1217586,
+      "needs_ocr": false,
+      "pdf_type": "text",
+      "confidence": 0.9,
+      "total_pages": 6,
+      "text_pages": 6,
+      "image_pages": 0,
+      "reasons": [
+        "\ubaa8\ub4e0 \ud398\uc774\uc9c0\uac00 \ud14d\uc2a4\ud2b8\ub85c\ub9cc \uad6c\uc131"
+      ],
+      "recommendations": [
+        "\ud14d\uc2a4\ud2b8 \uc9c1\uc811 \ucd94\ucd9c \uac00\ub2a5"
+      ],
+      "analysis_time": "2025-06-19T18:31:27.508927",
+      "producer": "",
+      "creator": "",
+      "producer_type": "unknown",
+      "scan_score": 5,
+      "is_likely_scanned": false,
+      "has_fonts": true,
+      "avg_text_per_page": 547.1666666666666
+    },
+    {
+      "file_name": "test2.pdf",
+      "file_path": "test2.pdf",
+      "file_size": 1875423,
+      "needs_ocr": true,
+      "pdf_type": "scanned",
+      "confidence": 0.9,
+      "total_pages": 6,
+      "text_pages": 0,
+      "image_pages": 6,
+      "reasons": [
+        "\uc2a4\uce90\ub108 \uc7a5\uce58\ub85c \uc0dd\uc131\ub428: SINDOH N501",
+        "\ud3f0\ud2b8 \uc815\ubcf4 \uc5c6\uc74c + \uc774\ubbf8\uc9c0 \uc874\uc7ac (\uc2a4\uce94 \ubb38\uc11c)",
+        "\ubaa8\ub4e0 \ud398\uc774\uc9c0\uac00 \uc774\ubbf8\uc9c0\ub85c\ub9cc \uad6c\uc131",
+        "\ud14d\uc2a4\ud2b8 \uac70\uc758 \uc5c6\uc74c (0\uc790/\ud398\uc774\uc9c0)"
+      ],
+      "recommendations": [
+        "OCR \ucc98\ub9ac\uac00 \ud544\uc694\ud569\ub2c8\ub2e4",
+        "\uace0\ud488\uc9c8 OCR\uc744 \uc704\ud574 300 DPI \uc774\uc0c1 \uad8c\uc7a5"
+      ],
+      "analysis_time": "2025-06-19T18:31:27.512837",
+      "producer": "SINDOH N501",
+      "creator": "28BW-8",
+      "producer_type": "scanner",
+      "scan_score": 100,
+      "is_likely_scanned": true,
+      "has_fonts": false,
+      "avg_text_per_page": 0.0
+    }
+  ]
+}

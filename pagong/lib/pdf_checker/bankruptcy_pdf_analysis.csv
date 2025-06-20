@@ -1,0 +1,3 @@
+﻿파일명,OCR필요,PDF유형,신뢰도,전체페이지,텍스트페이지,이미지페이지,Producer,Producer유형,스캔점수,평균텍스트
+2024하단104560 부동산 매각공고2.pdf,False,text,0.90,6,6,0,"",unknown,5,547
+test2.pdf,True,scanned,0.90,6,0,6,"SINDOH N501",scanner,100,0
