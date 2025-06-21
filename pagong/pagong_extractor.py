@@ -1,13 +1,25 @@
 """
-Pagong Extractor - 일괄 PDF 처리 스크립트
-data 폴더 내의 모든 ID 폴더를 순회하며 PDF 파일을 자동으로 처리
+Pagong Extractor - 통합 PDF 수집 및 처리 시스템
+법원 공고 PDF를 수집하고 이미지/텍스트를 자동으로 추출
 
 동작 방식:
-1. data 폴더 내의 모든 ID 폴더를 숫자 역순으로 정렬
-2. 각 ID 폴더에서:
-   - pdf 폴더가 있고, img/text 폴더가 없으면
-   - pdf 폴더 내의 PDF 파일을 pdf_extractor로 처리
-   - 결과를 해당 ID 폴더에 저장
+1. Court Crawler 실행 (옵션):
+   - 법원 사이트에서 새로운 PDF 파일 다운로드
+   - data/[ID]/pdf/ 폴더에 저장
+   
+2. PDF 처리:
+   - data 폴더 내의 모든 ID 폴더를 숫자 역순으로 정렬
+   - 각 ID 폴더에서:
+     * pdf 폴더가 있고, img/text 폴더가 없으면
+     * pdf 폴더 내의 PDF 파일을 pdf_extractor로 처리
+     * 결과를 해당 ID 폴더에 저장
+   - 이미 처리된 폴더를 만나면 중단
+
+사용법:
+  python pagong_extractor.py                    # 크롤러 실행 후 PDF 처리
+  python pagong_extractor.py --no-crawler       # PDF 처리만 수행
+  python pagong_extractor.py --dry-run          # 처리 대상만 확인
+  python pagong_extractor.py --data-dir custom  # 커스텀 data 폴더
 """
 
 import os
@@ -16,6 +28,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 import re
 from pdf_extractor import PDFExtractor
+from pdf_crawler import CourtCrawler, CrawlerConfig
 
 
 class PagongExtractor:
@@ -34,11 +47,35 @@ class PagongExtractor:
         self.skipped_count = 0
         self.error_count = 0
         
-    def run(self):
-        """메인 실행 함수"""
+    def run(self, run_crawler: bool = True):
+        """메인 실행 함수
+        
+        Args:
+            run_crawler: court_crawler를 먼저 실행할지 여부 (기본값: True)
+        """
         print("🚀 Pagong Extractor 시작")
         print(f"📁 data 폴더 경로: {self.data_dir}")
         print("="*60)
+        
+        # 1. Court Crawler 실행 (옵션)
+        if run_crawler:
+            print("\n📥 Court Crawler 실행 중...")
+            print("="*60)
+            try:
+                # 크롤러 설정
+                crawler_config = CrawlerConfig()
+                crawler_config.DOWNLOAD_FOLDER_NAME = self.data_dir  # 같은 data 폴더 사용
+                
+                # 크롤러 실행
+                with CourtCrawler(crawler_config) as crawler:
+                    crawler.run()
+                
+                print("\n✅ Court Crawler 완료!")
+                print("="*60)
+            except Exception as e:
+                print(f"\n⚠️  Court Crawler 오류 발생: {str(e)}")
+                print("PDF 처리는 계속 진행합니다...")
+                print("="*60)
         
         # data 폴더 존재 확인
         if not os.path.exists(self.data_dir):
@@ -52,6 +89,8 @@ class PagongExtractor:
             print("⚠️  처리할 ID 폴더가 없습니다.")
             return
         
+        print(f"\n📋 PDF 처리 시작")
+        print("="*60)
         print(f"📊 발견된 ID 폴더: {len(id_folders)}개")
         print(f"📋 처리 순서 (숫자 높은 순): {id_folders[:5]}{'...' if len(id_folders) > 5 else ''}")
         print("="*60)
@@ -205,13 +244,19 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="data 폴더의 PDF들을 일괄 처리합니다.",
+        description="법원 공고 PDF를 수집하고 이미지/텍스트를 추출합니다.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 사용 예시:
-  python pagong_extractor.py              # 기본 data 폴더 처리
-  python pagong_extractor.py --data-dir custom_data  # 커스텀 폴더 처리
-  python pagong_extractor.py --dry-run    # 실제 처리하지 않고 확인만
+  python pagong_extractor.py                        # 크롤러 실행 후 PDF 처리 (기본)
+  python pagong_extractor.py --no-crawler           # PDF 처리만 수행 (크롤러 건너뜀)
+  python pagong_extractor.py --dry-run              # 실제 처리하지 않고 확인만
+  python pagong_extractor.py --data-dir custom_data # 커스텀 폴더 처리
+  
+동작 순서:
+  1. Court Crawler로 새로운 PDF 다운로드 (--no-crawler 옵션 없을 때)
+  2. 다운로드된 PDF에서 이미지/텍스트 추출
+  3. 스캔본인 경우 scan 폴더 추가 생성
         """
     )
     
@@ -225,6 +270,12 @@ def main():
         "--dry-run",
         action="store_true",
         help="실제 처리하지 않고 처리 대상만 확인"
+    )
+    
+    parser.add_argument(
+        "--no-crawler",
+        action="store_true",
+        help="court_crawler를 실행하지 않고 PDF 처리만 수행"
     )
     
     args = parser.parse_args()
@@ -272,7 +323,9 @@ def main():
     
     # 실제 실행
     extractor = PagongExtractor(args.data_dir)
-    extractor.run()
+    # --no-crawler 옵션이 없으면 크롤러 실행 (기본값: 크롤러 실행)
+    run_crawler = not args.no_crawler
+    extractor.run(run_crawler=run_crawler)
 
 
 if __name__ == "__main__":
