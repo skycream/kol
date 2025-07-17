@@ -11,12 +11,16 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from telethon import TelegramClient, events
 from telethon.errors import FloodWaitError
+
+# .env 파일 로드
+load_dotenv()
 
 # 로깅 설정
 logging.basicConfig(
@@ -142,12 +146,11 @@ class TelegramForwarderBot:
                 if self.filter.should_forward(message.text):
                     # 텍스트와 이미지 모두 포워딩
                     if message.media:
-                        # 미디어가 있는 경우 미디어와 함께 전송
-                        await self.bot_client.send_message(
+                        # 미디어가 있는 경우 - 원본 메시지 포워딩 방식 사용
+                        await self.bot_client.forward_messages(
                             self.target_channel,
-                            message.text,
-                            file=message.media,
-                            parse_mode=None
+                            message.id,
+                            channel_name.replace('@', '')
                         )
                     else:
                         # 텍스트만 전송
