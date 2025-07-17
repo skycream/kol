@@ -140,12 +140,22 @@ class TelegramForwarderBot:
             
             if message.text:
                 if self.filter.should_forward(message.text):
-                    # 포워딩
-                    await self.bot_client.send_message(
-                        self.target_channel,
-                        message.text,
-                        parse_mode=None
-                    )
+                    # 텍스트와 이미지 모두 포워딩
+                    if message.media:
+                        # 미디어가 있는 경우 미디어와 함께 전송
+                        await self.bot_client.send_message(
+                            self.target_channel,
+                            message.text,
+                            file=message.media,
+                            parse_mode=None
+                        )
+                    else:
+                        # 텍스트만 전송
+                        await self.bot_client.send_message(
+                            self.target_channel,
+                            message.text,
+                            parse_mode=None
+                        )
                     
                     self.stats['forwarded'] += 1
                     logger.info(f"✅ 포워딩: {channel_name} - #{self.stats['forwarded']}")
@@ -253,6 +263,9 @@ async def lifespan(app: FastAPI):
     
     if await forwarder_instance.connect():
         logger.info("✅ 텔레그램 연결 성공")
+        # 서버 시작과 동시에 포워딩 자동 시작
+        await forwarder_instance.start_forwarding()
+        logger.info("🔄 포워딩 자동 시작됨")
     else:
         logger.error("❌ 텔레그램 연결 실패")
     
