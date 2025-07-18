@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import List, Dict, Optional, Any
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+import tempfile
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -105,7 +106,6 @@ class MessageFilter:
 
 class TelegramForwarderBot:
     def __init__(self):
-        self.bot_client = None
         self.user_client = None
         self.source_channels = ["@korean_alpha", "@JoshuaDeukKOR"]
         self.target_channel = "@ktradingalpha"
@@ -123,15 +123,11 @@ class TelegramForwarderBot:
     async def connect(self):
         """클라이언트 연결"""
         try:
-            # 봇 클라이언트
-            self.bot_client = TelegramClient('bot_session', API_ID, API_HASH)
-            await self.bot_client.start(bot_token=BOT_TOKEN)
-            
-            # 사용자 클라이언트 - 기존 세션 사용
+            # 사용자 클라이언트만 사용 - 기존 세션 사용
             self.user_client = TelegramClient('test_session', API_ID, API_HASH)
             await self.user_client.start()
             
-            logger.info("✅ 텔레그램 클라이언트 연결 성공")
+            logger.info("✅ 텔레그램 사용자 클라이언트 연결 성공")
             return True
         except Exception as e:
             logger.error(f"❌ 연결 실패: {e}")
@@ -142,29 +138,31 @@ class TelegramForwarderBot:
         try:
             self.stats['total'] += 1
             
+            # 텍스트 메시지가 있는 경우에만 처리
             if message.text:
                 if self.filter.should_forward(message.text):
-                    # 텍스트와 이미지 모두 포워딩
-                    if message.media:
-                        # 미디어가 있는 경우 - 원본 메시지 포워딩 방식 사용
-                        await self.bot_client.forward_messages(
-                            self.target_channel,
-                            message.id,
-                            channel_name.replace('@', '')
-                        )
-                    else:
-                        # 텍스트만 전송
-                        await self.bot_client.send_message(
+                    try:
+                        # 사용자 클라이언트로 직접 메시지 전송
+                        await self.user_client.send_message(
                             self.target_channel,
                             message.text,
+                            file=message.media if message.media else None,
                             parse_mode=None
                         )
-                    
-                    self.stats['forwarded'] += 1
-                    logger.info(f"✅ 포워딩: {channel_name} - #{self.stats['forwarded']}")
+                        
+                        self.stats['forwarded'] += 1
+                        logger.info(f"✅ 포워딩: {channel_name} - #{self.stats['forwarded']}")
+                        
+                    except Exception as send_error:
+                        # 전송 실패 시 에러 로깅
+                        self.stats['errors'] += 1
+                        logger.error(f"❌ 메시지 전송 실패: {send_error}")
                 else:
                     self.stats['filtered'] += 1
                     logger.info(f"🚫 필터링 차단: {channel_name} - 차단 #{self.stats['filtered']}")
+            else:
+                # 텍스트가 없는 메시지는 건너뛰기
+                logger.debug(f"⏭️ 텍스트 없는 메시지 건너뛰기: {channel_name}")
                     
         except FloodWaitError as e:
             logger.warning(f"⏳ 속도 제한: {e.seconds}초 대기")
@@ -211,9 +209,9 @@ class TelegramForwarderBot:
             except Exception as e:
                 logger.error(f"❌ {channel} 접근 실패: {e}")
         
-        # 실행 유지를 위한 무한 루프
-        while self.is_running:
-            await asyncio.sleep(1)
+        # 이벤트 핸들러만 등록하고 바로 리턴
+        # 실제 이벤트 처리는 백그라운드에서 자동으로 처리됨
+        logger.info("📡 이벤트 리스너 활성화됨")
     
     async def stop_forwarding(self):
         """포워딩 중지"""
@@ -230,8 +228,6 @@ class TelegramForwarderBot:
         """연결 종료"""
         await self.stop_forwarding()
         
-        if self.bot_client:
-            await self.bot_client.disconnect()
         if self.user_client:
             await self.user_client.disconnect()
         
@@ -264,13 +260,18 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 FastAPI 서버 시작")
     forwarder_instance = TelegramForwarderBot()
     
-    if await forwarder_instance.connect():
-        logger.info("✅ 텔레그램 연결 성공")
-        # 서버 시작과 동시에 포워딩 자동 시작
-        await forwarder_instance.start_forwarding()
-        logger.info("🔄 포워딩 자동 시작됨")
-    else:
-        logger.error("❌ 텔레그램 연결 실패")
+    # 백그라운드 태스크로 실행할 함수
+    async def auto_start():
+        if await forwarder_instance.connect():
+            logger.info("✅ 텔레그램 연결 성공")
+            # 서버 시작과 동시에 포워딩 자동 시작
+            asyncio.create_task(forwarder_instance.start_forwarding())
+            logger.info("🔄 포워딩 자동 시작됨")
+        else:
+            logger.error("❌ 텔레그램 연결 실패")
+    
+    # 백그라운드에서 실행
+    asyncio.create_task(auto_start())
     
     yield
     
@@ -449,17 +450,26 @@ async def general_exception_handler(request, exc):
 
 if __name__ == "__main__":
     import uvicorn
+    import signal
+    import sys
     
     # 환경 변수 확인
     if not API_ID or not API_HASH:
         logger.error("❌ 텔레그램 API 환경 변수가 설정되지 않았습니다.")
         exit(1)
     
+    # SIGINT (Ctrl+C) 핸들러
+    def signal_handler(sig, frame):
+        logger.info("\n⚠️ Ctrl+C 감지, 서버 종료 중...")
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    
     # 서버 실행
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=False,  # reload=True일 때 signal 처리가 제대로 안됨
         log_level="info"
     )
