@@ -61,7 +61,7 @@ class MessageFilter:
         self.exclude_words = [
             '에어드랍', '파트너', '당첨', '후기', '체커', '공개', 'AMA', 'ama', '원문', '예정',
             'TGE', '소식', '클레임', '링크', '트위터', '이벤트', '지급', '출시', '켠페인',
-            '추천', '채굴', '인터뷰', '파밍', '밋업', '콘테스트', '#kol'
+            '추천', '채굴', '인터뷰', '파밍', '밋업', '콘테스트', '#kol', '란?', 'KYC'
         ]
         
         # 한글 패턴
@@ -181,25 +181,38 @@ class TelegramForwarderBot:
         
         logger.info("🚀 포워딩 봇 시작")
         
-        # 이벤트 핸들러 등록 - 모든 채널을 한번에
-        @self.user_client.on(events.NewMessage(chats=self.source_channels))
+        # 이벤트 핸들러 함수 정의
         async def handle_new_message(event):
+            logger.info(f"🔔 이벤트 핸들러 호출됨 - 실행 상태: {self.is_running}")
+            
             if not self.is_running:
+                logger.info("❌ 봇이 실행 중이 아님 - 이벤트 무시")
                 return
                 
             try:
                 channel_entity = await event.get_chat()
                 channel_name = f"@{channel_entity.username}" if channel_entity.username else channel_entity.title
-            except:
+                logger.info(f"📡 채널 정보 - 이름: {channel_name}, ID: {channel_entity.id}")
+            except Exception as e:
                 channel_name = "Unknown"
+                logger.error(f"❌ 채널 정보 가져오기 실패: {e}")
             
-            logger.info(f"🔔 새 메시지 감지: {channel_name} ID {event.message.id}")
+            logger.info(f"🔔 새 메시지 감지: {channel_name} 메시지 ID {event.message.id}")
+            logger.info(f"📝 메시지 내용 미리보기: {event.message.text[:50] if event.message.text else '텍스트 없음'}...")
+            
             await self.forward_message(event.message, channel_name)
+        
+        # 이벤트 핸들러 등록 - add_event_handler 방식 사용
+        self.user_client.add_event_handler(
+            handle_new_message, 
+            events.NewMessage(chats=self.source_channels)
+        )
         
         # 핸들러 저장
         self.event_handlers.append(handle_new_message)
         
         logger.info("✅ 이벤트 핸들러 등록 완료")
+        logger.info(f"📋 감시 중인 채널: {self.source_channels}")
         
         # 채널 접근 확인
         for channel in self.source_channels:
@@ -438,6 +451,48 @@ async def reset_stats():
     }
     
     return {"message": "통계가 초기화되었습니다", "stats": forwarder_instance.stats}
+
+@app.post("/test/send")
+async def test_send():
+    """테스트 메시지 전송"""
+    if not forwarder_instance:
+        raise HTTPException(status_code=503, detail="봇이 초기화되지 않았습니다")
+    
+    try:
+        test_message = f"테스트 메시지 - {datetime.now().strftime('%H:%M:%S')}"
+        await forwarder_instance.user_client.send_message(
+            forwarder_instance.target_channel,
+            test_message
+        )
+        return {"message": "테스트 메시지 전송 완료", "text": test_message}
+    except Exception as e:
+        logger.error(f"테스트 메시지 전송 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"전송 실패: {str(e)}")
+
+@app.get("/test/channels")
+async def test_channels():
+    """채널 연결 상태 테스트"""
+    if not forwarder_instance:
+        raise HTTPException(status_code=503, detail="봇이 초기화되지 않았습니다")
+    
+    results = {}
+    
+    for channel in forwarder_instance.source_channels + [forwarder_instance.target_channel]:
+        try:
+            entity = await forwarder_instance.user_client.get_entity(channel)
+            results[channel] = {
+                "status": "success",
+                "title": entity.title,
+                "id": entity.id,
+                "username": getattr(entity, 'username', None)
+            }
+        except Exception as e:
+            results[channel] = {
+                "status": "error",
+                "error": str(e)
+            }
+    
+    return {"channels": results}
 
 # 에러 핸들러
 @app.exception_handler(Exception)
